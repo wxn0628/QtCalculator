@@ -2,11 +2,19 @@
 #include "ui_mainwindow.h"
 
 #include <QPushButton>
+#include <QStyle>
+#include <cmath>
 
 namespace {
 
 // 一个操作数最多允许输入的位数，防止显示区被撑爆
 const int kMaxDigits = 16;
+
+// 判断某个数是"0"，用于除零判断
+bool isZero(double value)
+{
+    return std::fabs(value) < 1e-12;
+}
 
 } // namespace
 
@@ -39,18 +47,31 @@ void MainWindow::bindButtons()
     for (QPushButton *btn : digitKeys)
         connect(btn, &QPushButton::clicked, this, &MainWindow::onDigitClicked);
 
+    m_operatorButtons = { ui->btnAdd, ui->btnSub, ui->btnMul, ui->btnDiv };
+    for (QPushButton *btn : m_operatorButtons)
+        connect(btn, &QPushButton::clicked, this, &MainWindow::onOperatorClicked);
+
     connect(ui->btnDot,        &QPushButton::clicked, this, &MainWindow::onDotClicked);
+    connect(ui->btnEqual,      &QPushButton::clicked, this, &MainWindow::onEqualClicked);
     connect(ui->btnBackspace,  &QPushButton::clicked, this, &MainWindow::onBackspaceClicked);
     connect(ui->btnClearAll,   &QPushButton::clicked, this, &MainWindow::onClearAllClicked);
     connect(ui->btnClearEntry, &QPushButton::clicked, this, &MainWindow::onClearEntryClicked);
 }
+
+/* ------------------------------ 数字与小数点 ------------------------------ */
 
 void MainWindow::onDigitClicked()
 {
     auto *btn = qobject_cast<QPushButton *>(sender());
     if (!btn)
         return;
+
+    if (m_error || m_resultShown)
+        startNewInput();
+
     appendDigit(btn->text());
+    m_operatorJustPressed = false;
+    updateExpression();
 }
 
 void MainWindow::appendDigit(const QString &digit)
@@ -81,6 +102,9 @@ void MainWindow::appendDigit(const QString &digit)
 
 void MainWindow::onDotClicked()
 {
+    if (m_error || m_resultShown)
+        startNewInput();
+
     if (m_waitingForOperand) {
         // 直接按小数点时补一个前导 0，避免出现 ".5"
         setDisplay(QStringLiteral("0."));
@@ -89,25 +113,145 @@ void MainWindow::onDotClicked()
         // 已经有一个小数点就直接忽略，杜绝 5..6
         setDisplay(displayText() + QLatin1Char('.'));
     }
+
+    m_operatorJustPressed = false;
+    updateExpression();
 }
+
+/* ------------------------------ 运算符与等号 ------------------------------ */
+
+void MainWindow::onOperatorClicked()
+{
+    auto *btn = qobject_cast<QPushButton *>(sender());
+    if (!btn)
+        return;
+    inputOperator(btn->text());
+}
+
+void MainWindow::inputOperator(const QString &op)
+{
+    if (m_error)
+        return;
+
+    // 连按运算符：只替换，不重复计算，也不把当前值当成第二操作数
+    if (!m_pendingOp.isEmpty() && m_operatorJustPressed) {
+        m_pendingOp = op;
+        highlightOperator(op);
+        updateExpression();
+        return;
+    }
+
+    // 已经有待执行的运算，说明是连续运算，先把前一步算出来
+    if (!m_pendingOp.isEmpty()) {
+        calculate();
+        if (m_error)
+            return;
+    }
+
+    m_operand1 = displayText().toDouble();
+    m_pendingOp = op;
+    m_waitingForOperand = true;
+    m_operatorJustPressed = true;
+    m_resultShown = false;
+
+    highlightOperator(op);
+    updateExpression();
+}
+
+void MainWindow::onEqualClicked()
+{
+    if (m_error)
+        return;
+
+    if (m_pendingOp.isEmpty()) {
+        // 没有待执行的运算，= 不改变显示，只是确认当前值
+        m_resultShown = true;
+        return;
+    }
+    calculate();
+}
+
+void MainWindow::calculate()
+{
+    if (m_pendingOp.isEmpty())
+        return;
+
+    const double left  = m_operand1;
+    const double right = displayText().toDouble();   // 刚按完运算符时显示区仍是左操作数
+    const QString op = m_pendingOp;
+
+    double result = 0.0;
+    if (op == QStringLiteral("+")) {
+        result = left + right;
+    } else if (op == QStringLiteral("−")) {
+        result = left - right;
+    } else if (op == QStringLiteral("×")) {
+        result = left * right;
+    } else if (op == QStringLiteral("÷")) {
+        if (isZero(right)) {
+            showError(QStringLiteral("除数不能为 0"));
+            return;
+        }
+        result = left / right;
+    }
+
+    ui->lblExpression->setText(QStringLiteral("%1 %2 %3 =")
+                                   .arg(formatNumber(left))
+                                   .arg(op)
+                                   .arg(formatNumber(right)));
+    setDisplay(formatNumber(result));
+
+    m_operand1 = result;          // 结果作为下一次运算的左操作数，支持连续运算
+    m_pendingOp.clear();
+    m_waitingForOperand = true;
+    m_operatorJustPressed = false;
+    m_resultShown = true;
+
+    highlightOperator(QString());
+}
+
+/* -------------------------------- 清除与退格 ------------------------------- */
 
 void MainWindow::onBackspaceClicked()
 {
+    if (m_error) {
+        clearAll();
+        return;
+    }
+
+    if (m_resultShown) {
+        // 结果状态下退格等于重新输入
+        setDisplay(QStringLiteral("0"));
+        m_resultShown = false;
+        m_waitingForOperand = false;
+        return;
+    }
+
     if (m_waitingForOperand)
-        return;                       // 没有正在输入的数字可删
+        return;                       // 刚按完运算符，没有正在输入的数字可删
 
     QString current = displayText();
     current.chop(1);
     if (current.isEmpty() || current == QLatin1String("-"))
         current = QStringLiteral("0");
     setDisplay(current);
+
+    m_operatorJustPressed = false;
+    updateExpression();
 }
 
 void MainWindow::onClearEntryClicked()
 {
-    // 只清当前输入
+    if (m_error) {
+        clearAll();
+        return;
+    }
+    // 只清当前输入，保留第一个操作数和运算符
     setDisplay(QStringLiteral("0"));
     m_waitingForOperand = false;
+    m_resultShown = false;
+    m_operatorJustPressed = false;
+    updateExpression();
 }
 
 void MainWindow::onClearAllClicked()
@@ -115,10 +259,36 @@ void MainWindow::onClearAllClicked()
     clearAll();
 }
 
+/* --------------------------------- 辅助函数 -------------------------------- */
+
+void MainWindow::startNewInput()
+{
+    if (m_error) {
+        clearAll();
+        return;
+    }
+    m_operand1 = 0.0;
+    m_pendingOp.clear();
+    m_waitingForOperand = true;
+    m_operatorJustPressed = false;
+    m_resultShown = false;
+    setDisplay(QStringLiteral("0"));
+    ui->lblExpression->clear();
+    highlightOperator(QString());
+}
+
 void MainWindow::clearAll()
 {
+    m_operand1 = 0.0;
+    m_pendingOp.clear();
     m_waitingForOperand = true;
+    m_operatorJustPressed = false;
+    m_error = false;
+    m_resultShown = false;
+
     setDisplay(QStringLiteral("0"));
+    ui->lblExpression->clear();
+    highlightOperator(QString());
 }
 
 void MainWindow::setDisplay(const QString &text)
@@ -131,8 +301,52 @@ QString MainWindow::displayText() const
     return ui->editDisplay->text();
 }
 
+void MainWindow::updateExpression()
+{
+    if (m_pendingOp.isEmpty()) {
+        ui->lblExpression->clear();
+        return;
+    }
+    QString expr = QStringLiteral("%1 %2").arg(formatNumber(m_operand1)).arg(m_pendingOp);
+    if (!m_waitingForOperand)
+        expr += QLatin1Char(' ') + displayText();
+    ui->lblExpression->setText(expr);
+}
+
+void MainWindow::highlightOperator(const QString &op)
+{
+    // 正在使用的运算符高亮，样式表靠 active 动态属性区分
+    for (QPushButton *btn : m_operatorButtons) {
+        const bool active = !op.isEmpty() && btn->text() == op;
+        if (btn->property("active").toBool() == active)
+            continue;
+        btn->setProperty("active", active);
+        btn->style()->unpolish(btn);
+        btn->style()->polish(btn);
+    }
+}
+
+void MainWindow::showError(const QString &reason)
+{
+    setDisplay(QStringLiteral("错误"));
+    ui->lblExpression->setText(reason);
+
+    // 出错后把运算状态清干净，避免后续输入被拼到提示文字后面
+    m_operand1 = 0.0;
+    m_pendingOp.clear();
+    m_waitingForOperand = true;
+    m_operatorJustPressed = false;
+    m_error = true;
+    m_resultShown = false;
+
+    highlightOperator(QString());
+}
+
 QString MainWindow::formatNumber(double value)
 {
+    if (std::isnan(value) || std::isinf(value))
+        return QStringLiteral("错误");
+
     QString text = QString::number(value, 'g', 12);
     if (text == QLatin1String("-0"))
         text = QStringLiteral("0");
