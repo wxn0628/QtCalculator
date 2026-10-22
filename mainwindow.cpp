@@ -56,6 +56,11 @@ void MainWindow::bindButtons()
     connect(ui->btnBackspace,  &QPushButton::clicked, this, &MainWindow::onBackspaceClicked);
     connect(ui->btnClearAll,   &QPushButton::clicked, this, &MainWindow::onClearAllClicked);
     connect(ui->btnClearEntry, &QPushButton::clicked, this, &MainWindow::onClearEntryClicked);
+    connect(ui->btnSign,       &QPushButton::clicked, this, &MainWindow::onToggleSignClicked);
+    connect(ui->btnPercent,    &QPushButton::clicked, this, &MainWindow::onPercentClicked);
+    connect(ui->btnSquare,     &QPushButton::clicked, this, &MainWindow::onSquareClicked);
+    connect(ui->btnSqrt,       &QPushButton::clicked, this, &MainWindow::onSqrtClicked);
+    connect(ui->btnReciprocal, &QPushButton::clicked, this, &MainWindow::onReciprocalClicked);
 }
 
 /* ------------------------------ 数字与小数点 ------------------------------ */
@@ -208,6 +213,75 @@ void MainWindow::calculate()
     m_resultShown = true;
 
     highlightOperator(QString());
+}
+
+/* -------------------------------- 单操作数 -------------------------------- */
+
+void MainWindow::onToggleSignClicked()
+{
+    if (m_error) {
+        clearAll();
+        return;
+    }
+    applyUnary(-displayText().toDouble());
+}
+
+void MainWindow::onPercentClicked()
+{
+    if (m_error)
+        return;
+    applyUnary(displayText().toDouble() / 100.0);
+}
+
+void MainWindow::onSquareClicked()
+{
+    if (m_error)
+        return;
+    const double value = displayText().toDouble();
+    applyUnary(value * value);
+}
+
+void MainWindow::onSqrtClicked()
+{
+    if (m_error)
+        return;
+    const double value = displayText().toDouble();
+    if (value < 0.0) {
+        showError(QStringLiteral("负数不能开平方"));
+        return;
+    }
+    applyUnary(std::sqrt(value));
+}
+
+void MainWindow::onReciprocalClicked()
+{
+    if (m_error)
+        return;
+    const double value = displayText().toDouble();
+    if (isZero(value)) {
+        showError(QStringLiteral("0 没有倒数"));
+        return;
+    }
+    applyUnary(1.0 / value);
+}
+
+void MainWindow::applyUnary(double value)
+{
+    setDisplay(formatNumber(value));
+
+    // 单操作数的结果直接成为当前操作数：下一次按数字会重新开始，
+    // 按运算符 / 等号则继续参与后面的计算
+    m_waitingForOperand = true;
+    m_resultShown = false;
+    m_operatorJustPressed = false;
+
+    if (m_pendingOp.isEmpty())
+        ui->lblExpression->clear();
+    else
+        ui->lblExpression->setText(QStringLiteral("%1 %2 %3")
+                                       .arg(formatNumber(m_operand1))
+                                       .arg(m_pendingOp)
+                                       .arg(formatNumber(value)));
 }
 
 /* -------------------------------- 清除与退格 ------------------------------- */

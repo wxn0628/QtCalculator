@@ -27,12 +27,18 @@ private slots:
     void onBackspaceClicked();
     void onClearAllClicked();
     void onClearEntryClicked();
+    void onToggleSignClicked();
+    void onPercentClicked();
+    void onSquareClicked();
+    void onSqrtClicked();
+    void onReciprocalClicked();
 
 private:
     void bindButtons();                       // 批量连接信号与槽
     void appendDigit(const QString &digit);   // 追加一位数字
     void inputOperator(const QString &op);    // 处理 + - × ÷
     void calculate();                         // 执行一次双操作数运算
+    void applyUnary(double value);            // 单操作数运算结果的统一收尾
     void startNewInput();                     // 结果/错误状态下重新开始
     void clearAll();                          // C 键：全部复位
     void setDisplay(const QString &text);
