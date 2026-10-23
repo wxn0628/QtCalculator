@@ -1,0 +1,97 @@
+/* ---------- 整体背景 ---------- */
+QWidget#centralwidget {
+    background-color: #eef1f6;
+}
+
+/* ---------- 表达式预览（显示已经输入的操作数和运算符） ---------- */
+QLabel#lblExpression {
+    background: transparent;
+    color: #7b8494;
+    font-size: 14px;
+    padding-right: 12px;
+}
+
+/* ---------- 主显示区 ---------- */
+QLineEdit#editDisplay {
+    background-color: #ffffff;
+    border: 1px solid #d5dbe5;
+    border-radius: 12px;
+    padding: 4px 14px;
+    color: #1f2430;
+    selection-background-color: #2f6fed;
+}
+
+/* ---------- 按键公共属性 ---------- */
+QPushButton {
+    min-height: 54px;
+    font-size: 18px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+}
+
+/* 数字键：白底 */
+QPushButton[keyRole="num"] {
+    background-color: #ffffff;
+    border-color: #e3e8f0;
+    color: #1f2430;
+}
+QPushButton[keyRole="num"]:hover {
+    background-color: #f4f7fc;
+}
+QPushButton[keyRole="num"]:pressed {
+    background-color: #e6ecf7;
+}
+
+/* 功能键：浅灰 */
+QPushButton[keyRole="func"] {
+    background-color: #e6ebf3;
+    color: #414a5a;
+}
+QPushButton[keyRole="func"]:hover {
+    background-color: #dbe2ec;
+}
+QPushButton[keyRole="func"]:pressed {
+    background-color: #ccd5e2;
+}
+
+/* 四则运算符：淡蓝，正在使用的运算符高亮成实心蓝 */
+QPushButton[keyRole="op"] {
+    background-color: #dce9ff;
+    color: #1a56c4;
+    font-size: 20px;
+}
+QPushButton[keyRole="op"]:hover {
+    background-color: #cbdffd;
+}
+QPushButton[keyRole="op"]:pressed {
+    background-color: #b9d2fb;
+}
+QPushButton[keyRole="op"][active="true"] {
+    background-color: #2f6fed;
+    color: #ffffff;
+}
+
+/* 清除键：淡红，和数字键拉开区分 */
+QPushButton[keyRole="clear"] {
+    background-color: #ffe7e4;
+    color: #c0392b;
+}
+QPushButton[keyRole="clear"]:hover {
+    background-color: #ffd9d4;
+}
+QPushButton[keyRole="clear"]:pressed {
+    background-color: #ffc9c2;
+}
+
+/* 等号键：实心蓝，视觉重心 */
+QPushButton[keyRole="equal"] {
+    background-color: #2f6fed;
+    color: #ffffff;
+    font-size: 22px;
+}
+QPushButton[keyRole="equal"]:hover {
+    background-color: #2a63d4;
+}
+QPushButton[keyRole="equal"]:pressed {
+    background-color: #2456bb;
+}
