@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QHash>
 #include <QList>
 
 QT_BEGIN_NAMESPACE
@@ -19,6 +20,10 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+protected:
+    // 键盘事件统一入口：只把按键翻译成"按下某个按钮"
+    void keyPressEvent(QKeyEvent *event) override;
+
 private slots:
     void onDigitClicked();
     void onDotClicked();
@@ -35,6 +40,7 @@ private slots:
 
 private:
     void bindButtons();                       // 批量连接信号与槽
+    void initKeyMap();                        // 键盘按键 -> 按钮 的映射表
     void appendDigit(const QString &digit);   // 追加一位数字
     void inputOperator(const QString &op);    // 处理 + - × ÷
     void calculate();                         // 执行一次双操作数运算
@@ -49,6 +55,7 @@ private:
     static QString formatNumber(double value);
 
     Ui::MainWindow *ui;
+    QHash<int, QPushButton *> m_keyMap;
     QList<QPushButton *> m_operatorButtons;
 
     double  m_operand1 = 0.0;              // 第一个操作数

@@ -1,7 +1,9 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
+#include <QKeyEvent>
 #include <QPushButton>
+#include <QSizePolicy>
 #include <QStyle>
 #include <cmath>
 
@@ -10,7 +12,7 @@ namespace {
 // 一个操作数最多允许输入的位数，防止显示区被撑爆
 const int kMaxDigits = 16;
 
-// 判断某个数是"0"，用于除零判断
+// 判断某个数是"0"，用于除零 / 倒数判断
 bool isZero(double value)
 {
     return std::fabs(value) < 1e-12;
@@ -23,12 +25,23 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+
+    // 按老师要求，窗口标题带上学号姓名
     setWindowTitle(QStringLiteral("计算器-吴湘楠-2024414290333"));
 
-    // 显示框只读，保证输入只能来自按键
+    // 显示区只读，并且不接收焦点：否则输入框会抢走键盘事件
     ui->editDisplay->setReadOnly(true);
+    ui->editDisplay->setFocusPolicy(Qt::NoFocus);
+
+    // 所有按钮都不接收焦点，保证 keyPressEvent 一定落到主窗口
+    const QList<QPushButton *> buttons = findChildren<QPushButton *>();
+    for (QPushButton *btn : buttons) {
+        btn->setFocusPolicy(Qt::NoFocus);
+        btn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    }
 
     bindButtons();
+    initKeyMap();
     clearAll();
 }
 
@@ -39,7 +52,6 @@ MainWindow::~MainWindow()
 
 void MainWindow::bindButtons()
 {
-    // 数字键地位相同，共用一个槽函数，靠 sender() 区分是谁按的
     const QList<QPushButton *> digitKeys = {
         ui->btnNum0, ui->btnNum1, ui->btnNum2, ui->btnNum3, ui->btnNum4,
         ui->btnNum5, ui->btnNum6, ui->btnNum7, ui->btnNum8, ui->btnNum9
@@ -51,16 +63,55 @@ void MainWindow::bindButtons()
     for (QPushButton *btn : m_operatorButtons)
         connect(btn, &QPushButton::clicked, this, &MainWindow::onOperatorClicked);
 
-    connect(ui->btnDot,        &QPushButton::clicked, this, &MainWindow::onDotClicked);
-    connect(ui->btnEqual,      &QPushButton::clicked, this, &MainWindow::onEqualClicked);
-    connect(ui->btnBackspace,  &QPushButton::clicked, this, &MainWindow::onBackspaceClicked);
-    connect(ui->btnClearAll,   &QPushButton::clicked, this, &MainWindow::onClearAllClicked);
-    connect(ui->btnClearEntry, &QPushButton::clicked, this, &MainWindow::onClearEntryClicked);
-    connect(ui->btnSign,       &QPushButton::clicked, this, &MainWindow::onToggleSignClicked);
-    connect(ui->btnPercent,    &QPushButton::clicked, this, &MainWindow::onPercentClicked);
-    connect(ui->btnSquare,     &QPushButton::clicked, this, &MainWindow::onSquareClicked);
-    connect(ui->btnSqrt,       &QPushButton::clicked, this, &MainWindow::onSqrtClicked);
-    connect(ui->btnReciprocal, &QPushButton::clicked, this, &MainWindow::onReciprocalClicked);
+    connect(ui->btnDot,         &QPushButton::clicked, this, &MainWindow::onDotClicked);
+    connect(ui->btnEqual,       &QPushButton::clicked, this, &MainWindow::onEqualClicked);
+    connect(ui->btnBackspace,   &QPushButton::clicked, this, &MainWindow::onBackspaceClicked);
+    connect(ui->btnClearAll,    &QPushButton::clicked, this, &MainWindow::onClearAllClicked);
+    connect(ui->btnClearEntry,  &QPushButton::clicked, this, &MainWindow::onClearEntryClicked);
+    connect(ui->btnSign,        &QPushButton::clicked, this, &MainWindow::onToggleSignClicked);
+    connect(ui->btnPercent,     &QPushButton::clicked, this, &MainWindow::onPercentClicked);
+    connect(ui->btnSquare,      &QPushButton::clicked, this, &MainWindow::onSquareClicked);
+    connect(ui->btnSqrt,        &QPushButton::clicked, this, &MainWindow::onSqrtClicked);
+    connect(ui->btnReciprocal,  &QPushButton::clicked, this, &MainWindow::onReciprocalClicked);
+}
+
+void MainWindow::initKeyMap()
+{
+    // 键盘按键 -> 界面按钮。键盘不做任何计算，等价于用鼠标点同一个按钮
+    m_keyMap = {
+        { Qt::Key_0, ui->btnNum0 }, { Qt::Key_1, ui->btnNum1 },
+        { Qt::Key_2, ui->btnNum2 }, { Qt::Key_3, ui->btnNum3 },
+        { Qt::Key_4, ui->btnNum4 }, { Qt::Key_5, ui->btnNum5 },
+        { Qt::Key_6, ui->btnNum6 }, { Qt::Key_7, ui->btnNum7 },
+        { Qt::Key_8, ui->btnNum8 }, { Qt::Key_9, ui->btnNum9 },
+
+        { Qt::Key_Period,    ui->btnDot },
+        { Qt::Key_Comma,     ui->btnDot },
+        { Qt::Key_Plus,      ui->btnAdd },
+        { Qt::Key_Minus,     ui->btnSub },
+        { Qt::Key_Asterisk,  ui->btnMul },
+        { Qt::Key_Slash,     ui->btnDiv },
+        { Qt::Key_Percent,   ui->btnPercent },
+
+        { Qt::Key_Equal,     ui->btnEqual },
+        { Qt::Key_Return,    ui->btnEqual },
+        { Qt::Key_Enter,     ui->btnEqual },
+
+        { Qt::Key_Backspace, ui->btnBackspace },
+        { Qt::Key_Delete,    ui->btnClearEntry },
+        { Qt::Key_Escape,    ui->btnClearAll },
+        { Qt::Key_F9,        ui->btnSign }
+    };
+}
+
+void MainWindow::keyPressEvent(QKeyEvent *event)
+{
+    if (QPushButton *btn = m_keyMap.value(event->key(), nullptr)) {
+        // animateClick 让键盘输入在界面上也有按下的视觉反馈
+        btn->animateClick();
+        return;
+    }
+    QMainWindow::keyPressEvent(event);
 }
 
 /* ------------------------------ 数字与小数点 ------------------------------ */
@@ -381,7 +432,7 @@ void MainWindow::updateExpression()
         ui->lblExpression->clear();
         return;
     }
-    QString expr = QStringLiteral("%1 %2").arg(formatNumber(m_operand1)).arg(m_pendingOp);
+    QString expr = QStringLiteral("%1 %2").arg(formatNumber(m_operand1), m_pendingOp);
     if (!m_waitingForOperand)
         expr += QLatin1Char(' ') + displayText();
     ui->lblExpression->setText(expr);
